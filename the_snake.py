@@ -1,6 +1,43 @@
-from random import choice, randint
+"""
+| The Snake Game!
+
+| Implemented with Pygame.
+
+Goal:
+    Collect as many apples as you can and stay alive. Also have fun with it! :)
+
+This version of a game contains:
+- Apple: Collectable, that increases your snake`s length.
+         Dissapears if not collected in time (random lifetime).
+- Rock: Beware! That one kills. Maybe it is radioactice or smth like this.
+        Amount of rocks is set by default to 3 and may be changed.
+        Also dissapears over time and appear in new location.
+- Snake: Player-controlled, growing from apples (weird but O.K.).
+         Increasing its speed over every eaten apple.
+         Dies on hitting a rock.
+
+Controls:
+    Use your keyboard arrows to set direction of a snake.
+
+
+| Created by Yandex.Practicum student:
+| Dmitry Isarenko.
+| isarenko.dmitry.it@gmail.com
+"""
+
+from random import randint
 
 import pygame
+
+# Доп параметры яблока
+APPLE_LIFE_IN_TICKS = [25, 70]
+APPLE_BLINK_LEN_IN_TICKS = 3
+
+# Параметры камня
+ROCKS_GENERATED = 3
+ROCK_LIFE_IN_TICKS = [40, 150]
+ROCK_COLOR = (100, 100, 100)
+ROCK_BLINK_LEN_IN_TICKS = 3
 
 # Константы для размеров поля и сетки:
 SCREEN_WIDTH, SCREEN_HEIGHT = 640, 480
@@ -13,6 +50,9 @@ UP = (0, -1)
 DOWN = (0, 1)
 LEFT = (-1, 0)
 RIGHT = (1, 0)
+
+# Цвет мигания при исчезании - белый:
+BLINK_COLOR = (255, 255, 255)
 
 # Цвет фона - черный:
 BOARD_BACKGROUND_COLOR = (0, 0, 0)
@@ -27,7 +67,8 @@ APPLE_COLOR = (255, 0, 0)
 SNAKE_COLOR = (0, 255, 0)
 
 # Скорость движения змейки:
-SPEED = 20
+SPEED = 5
+SPEED_STEP = 0.5
 
 # Настройка игрового окна:
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
@@ -40,67 +81,377 @@ clock = pygame.time.Clock()
 
 
 # Тут опишите все классы игры.
-...
+class GameObject:
+    """
+    | Base game class. Used to define fundamental attributes to all
+    | inheritant classes.
+
+    | Superclass: object (built-in)
+    | Subclasses: Apple, Rock, Snake
+    """
+
+    def __init__(self):
+        self.body_color = None
+        self.position = ((SCREEN_WIDTH // 2), (SCREEN_HEIGHT // 2))
+
+    def draw(self):
+        """Method is not available in superclass.
+        Has to be overridden in every subclass.
+        """
+        pass
+
+
+class Apple(GameObject):
+    """
+    | Class that describes an apple in game.
+    | Superclass: GameObject
+    | Subclasses: Rock
+
+    | Apple has a random lifetime and dissapears if hasn`t been picked up.
+    | Blinks on final lifespan phase.
+
+    Picking up:
+        - increases snake`s length by 1 segment.
+        - increases snake`s speed by fixed amount.
+        - generates new apple in random coords.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.body_color = APPLE_COLOR
+        self.randomize_position()
+        self.life = randint(APPLE_LIFE_IN_TICKS[0], APPLE_LIFE_IN_TICKS[1])
+        self.blink_tick_count = 0
+
+    def draw(self):
+        """
+        Method is used for drawing an apple object on a grid.
+        Color is predefined.
+
+        | args: None
+        | returns: None
+        """
+        rect = pygame.Rect(self.position, (GRID_SIZE, GRID_SIZE))
+        pygame.draw.rect(screen, self.body_color, rect)
+        pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
+
+    def randomize_position(self):
+        """
+        Assigns a random position for an object.
+        Coords stays withing the game field.
+
+        | args: None
+        | returns: None
+        """
+        rand_x = randint(0, SCREEN_WIDTH) // GRID_SIZE * GRID_SIZE
+        rand_y = randint(0, SCREEN_HEIGHT) // GRID_SIZE * GRID_SIZE
+        self.position = ((rand_x), (rand_y))
+
+    def reset(self):
+        """
+        Fills last recordered position of an object with a background color
+        (=erases) and triggers reinitialization.
+
+        | args: None
+        | returns: None
+        """
+        rect = (pygame.Rect(self.position, (GRID_SIZE, GRID_SIZE)))
+        pygame.draw.rect(screen, BOARD_BACKGROUND_COLOR, rect)
+        self.__init__()
+
+    def update_life(self):
+        """
+        | Method is used to decrease 'life' counter of an object.
+        | Triggers method 'blink_on_low_life' when reaching certain amount.
+        | Triggers method 'reset' on reaching zero.
+
+        | args: None
+        | returns: None
+        """
+        self.life -= 1
+        if self.life <= 0:
+            self.reset()
+        elif self.life <= 20:
+            self.blink_on_low_life()
+
+    def blink_on_low_life(self):
+        """
+        Adds blinks for an apple object on trigger. Each iteration switches
+        color from default apple color to predefined blinking color.
+
+        | args: None
+        | returns: None
+        """
+        if self.blink_tick_count == APPLE_BLINK_LEN_IN_TICKS:
+            self.body_color = APPLE_COLOR
+            self.draw()
+            self.blink_tick_count = 0
+        elif self.blink_tick_count % 2 == 0:
+            self.blink_tick_count += 1
+            self.body_color = APPLE_COLOR
+        else:
+            self.blink_tick_count += 1
+            self.body_color = BLINK_COLOR
+
+
+class Rock(Apple):
+    """
+    | Class that describes a rock in game.
+    | Superclass: Apple
+    | Subclasses: None
+
+    | Rock has a random lifetime and dissapears over time.
+    | Blinks on final lifespan phase.
+
+    Hitting rock:
+        - kills your snake instantly.
+        - decreases snake`s length to 1.
+        - decreases snake`s speed to default speed.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.body_color = ROCK_COLOR
+        self.life = randint(ROCK_LIFE_IN_TICKS[0], ROCK_LIFE_IN_TICKS[1])
+
+    def blink_on_low_life(self):
+        """
+        Adds blinks for a rock object on trigger. Each iteration switches
+        color from default rock color to predefined blinking color.
+
+        | args: None
+        | returns: None
+        """
+        if self.blink_tick_count == ROCK_BLINK_LEN_IN_TICKS:
+            self.body_color = ROCK_COLOR
+            self.draw()
+            self.blink_tick_count = 0
+        elif self.blink_tick_count % 2 == 0:
+            self.blink_tick_count += 1
+            self.body_color = ROCK_COLOR
+        else:
+            self.blink_tick_count += 1
+            self.body_color = BLINK_COLOR
+
+
+class Snake(GameObject):
+    """
+    Class that describes a snake in game.
+    | Superclass: GameObject
+    | Subclasses: None
+
+    | Starting direction: right.
+    | Starting length: 1.
+
+    | Moves in discrete steps on grid. Controlled by keyboard arrows.
+    | Grows by consuming apples.
+    | Dies upon hitting itself or any rock.
+
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.has_eaten = False
+        self.body_color = SNAKE_COLOR
+        self.direction = RIGHT
+        self.next_direction = None
+        self.length = 1
+        self.position = ((SCREEN_WIDTH // 2), (SCREEN_HEIGHT // 2))
+        self.positions = [self.position]
+        self.last = self.get_head_position()
+        self.speed = SPEED
+
+    def get_head_position(self):
+        """
+        Returns position of the snake`s head.
+
+        | args: None
+        | returns: tuple: (x, y)
+        """
+        return self.positions[0]
+
+    def reset(self):
+        """
+        Resets snake:
+        - clears body segments from a screen
+        - triggers reinitialization of a snake
+
+        | args: None
+        | returns: None
+        """
+        for position in self.positions:
+            rect = (pygame.Rect(position, (GRID_SIZE, GRID_SIZE)))
+            pygame.draw.rect(screen, BOARD_BACKGROUND_COLOR, rect)
+        self.__init__()
+
+    def draw(self):
+        """
+        Draws head and body of a snake.
+        Clears tail trail on movement.
+
+        | args: None
+        | returns: None
+        """
+        for position in self.positions[:-1]:
+            rect = (pygame.Rect(position, (GRID_SIZE, GRID_SIZE)))
+            pygame.draw.rect(screen, self.body_color, rect)
+            pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
+
+        # Отрисовка головы змейки
+        head_rect = pygame.Rect(self.positions[0], (GRID_SIZE, GRID_SIZE))
+        pygame.draw.rect(screen, self.body_color, head_rect)
+        pygame.draw.rect(screen, BORDER_COLOR, head_rect, 1)
+
+        # Затирание последнего сегмента
+        if self.last:
+            last_rect = pygame.Rect(self.last, (GRID_SIZE, GRID_SIZE))
+            pygame.draw.rect(screen, BOARD_BACKGROUND_COLOR, last_rect)
+
+    def move(self):
+        """
+        Implementation of 'movement' of a snake:
+        1. add head to heading direction
+        2. cut the tail segment if haven`t recently eaten an apple
+
+        Warping over game field edges.
+
+        | args: None
+        | returns: None
+        """
+        next_x = self.position[0] + GRID_SIZE * self.direction[0]
+        next_y = self.position[1] + GRID_SIZE * self.direction[1]
+
+        if next_x > SCREEN_WIDTH - GRID_SIZE:
+            next_x = 0
+        elif next_x < 0:
+            next_x = SCREEN_WIDTH - GRID_SIZE
+
+        if next_y > SCREEN_HEIGHT - GRID_SIZE:
+            next_y = 0
+        elif next_y < 0:
+            next_y = SCREEN_HEIGHT - GRID_SIZE
+
+        self.positions.insert(0, ((next_x), (next_y)))
+
+        if self.has_eaten:
+            self.has_eaten = False
+            self.length += 1
+            self.update_speed()
+        else:
+            self.last = self.positions.pop(-1)
+
+        self.position = self.positions[0]
+
+        self.draw()
+
+    def check_collision(self, object):
+        """
+        Check collisions with game objects:
+        - Apple: triggers growth
+        - Rock: triggers death
+        - Snake: (hit yourself) triggers death
+
+        | args: object (GameObject): The object to check collision against.
+        | returns: None
+        """
+        if object.__class__ == Apple:
+            if object.position == self.position:
+                self.has_eaten = True
+                object.reset()
+
+        if object.__class__ == Snake:
+            if self.positions[0] in self.positions[1::]:
+                self.reset()
+
+        if object.__class__ == Rock:
+            if object.position == self.position:
+                self.reset()
+
+    def update_direction(self):
+        """
+        Rewrites movement direction if another one was set.
+
+        | args: None
+        | returns: None
+        """
+        if self.next_direction:
+            self.direction = self.next_direction
+            self.next_direction = None
+
+    def update_speed(self):
+        """
+        Increases speed on call. Typically used in eating an apple condition.
+
+        | args: None
+        | returns: None
+        """
+        self.speed += SPEED_STEP
+
+
+def handle_keys(game_object: Snake):
+    """
+    Used to handle keyboard inputs (arrow keys) and 'close window' event.
+
+    Allows to steer a snake over field and exit game by closing a window.
+
+    | args: object (Snake): The snake obj, that should be controlled.
+    | returns: None
+    """
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            raise SystemExit
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP and game_object.direction != DOWN:
+                game_object.next_direction = UP
+            elif event.key == pygame.K_DOWN and game_object.direction != UP:
+                game_object.next_direction = DOWN
+            elif event.key == pygame.K_LEFT and game_object.direction != RIGHT:
+                game_object.next_direction = LEFT
+            elif event.key == pygame.K_RIGHT and game_object.direction != LEFT:
+                game_object.next_direction = RIGHT
 
 
 def main():
-    # Инициализация PyGame:
+    """
+    Initializes and runs the main game loop.
+
+    Handles object rendering, movement, input processing,
+    collision detection, and frame timing.
+
+    | args: None
+    | returns: None
+    """
     pygame.init()
-    # Тут нужно создать экземпляры классов.
-    ...
 
-    # while True:
-    #     clock.tick(SPEED)
+    snake = Snake()
+    apple = Apple()
+    rocks = [Rock() for _ in range(ROCKS_GENERATED)]
 
-        # Тут опишите основную логику игры.
-        # ...
+    snake.draw()
+
+    while True:
+        apple.draw()
+        for rock in rocks:
+            rock.draw()
+
+        apple.update_life()
+        for rock in rocks:
+            rock.update_life()
+
+        snake.check_collision(apple)
+
+        handle_keys(snake)
+        snake.update_direction()
+        snake.move()
+
+        snake.check_collision(snake)
+        for rock in rocks:
+            snake.check_collision(rock)
+
+        clock.tick(snake.speed)
+        pygame.display.update()
 
 
 if __name__ == '__main__':
     main()
-
-
-# Метод draw класса Apple
-# def draw(self):
-#     rect = pygame.Rect(self.position, (GRID_SIZE, GRID_SIZE))
-#     pygame.draw.rect(screen, self.body_color, rect)
-#     pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
-
-# # Метод draw класса Snake
-# def draw(self):
-#     for position in self.positions[:-1]:
-#         rect = (pygame.Rect(position, (GRID_SIZE, GRID_SIZE)))
-#         pygame.draw.rect(screen, self.body_color, rect)
-#         pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
-
-#     # Отрисовка головы змейки
-#     head_rect = pygame.Rect(self.positions[0], (GRID_SIZE, GRID_SIZE))
-#     pygame.draw.rect(screen, self.body_color, head_rect)
-#     pygame.draw.rect(screen, BORDER_COLOR, head_rect, 1)
-
-#     # Затирание последнего сегмента
-#     if self.last:
-#         last_rect = pygame.Rect(self.last, (GRID_SIZE, GRID_SIZE))
-#         pygame.draw.rect(screen, BOARD_BACKGROUND_COLOR, last_rect)
-
-# Функция обработки действий пользователя
-# def handle_keys(game_object):
-#     for event in pygame.event.get():
-#         if event.type == pygame.QUIT:
-#             pygame.quit()
-#             raise SystemExit
-#         elif event.type == pygame.KEYDOWN:
-#             if event.key == pygame.K_UP and game_object.direction != DOWN:
-#                 game_object.next_direction = UP
-#             elif event.key == pygame.K_DOWN and game_object.direction != UP:
-#                 game_object.next_direction = DOWN
-#             elif event.key == pygame.K_LEFT and game_object.direction != RIGHT:
-#                 game_object.next_direction = LEFT
-#             elif event.key == pygame.K_RIGHT and game_object.direction != LEFT:
-#                 game_object.next_direction = RIGHT
-
-# Метод обновления направления после нажатия на кнопку
-# def update_direction(self):
-#     if self.next_direction:
-#         self.direction = self.next_direction
-#         self.next_direction = None
