@@ -101,11 +101,11 @@ class GameObject:
         self.blink_tick_count = 0
         self.position = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
 
-    # def draw(self):
-    #     """Method is not available in superclass.
-    #     Has to be overridden in every subclass.
-    #     """
-    #     pass
+    def draw(self):
+        """Method is not available in superclass.
+        Has to be overridden in every subclass.
+        """
+        pass
 
 
 class LifeUpdatableMixin:
@@ -195,7 +195,7 @@ class BlinkableMixin:
         """
         if self.blink_tick_count == self.low_life_blink_speed:
             self.body_color = self.default_body_color
-            self.draw(screen)
+            self.draw_single_dot(screen)
             self.blink_tick_count = 0
         elif self.blink_tick_count % 2 == 0:
             self.blink_tick_count += 1
@@ -211,7 +211,7 @@ class DrawableMixin:
     Mixin created to follow DRY convention.
     """
 
-    def draw(self, screen):
+    def draw_single_dot(self, screen):
         """
         Method is used for drawing an apple object on a grid.
         Color is predefined.
@@ -258,20 +258,6 @@ class Apple(
         self.default_body_color = APPLE_COLOR
         self.low_life_blink_speed = APPLE_BLINK_SPEED_IN_TICKS
 
-    # def draw(self):
-    #     """
-    #     Method is used for drawing an apple object on a grid.
-    #     Color is predefined.
-
-    #     args:
-    #         None
-    #     returns:
-    #         None
-    #     """
-    #     rect = pygame.Rect(self.position, (GRID_SIZE, GRID_SIZE))
-    #     pygame.draw.rect(screen, self.body_color, rect)
-    #     pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
-
 
 class Rock(
     GameObject,
@@ -305,20 +291,6 @@ class Rock(
         self.body_color = ROCK_COLOR
         self.default_body_color = ROCK_COLOR
         self.low_life_blink_speed = ROCK_BLINK_SPEED_IN_TICKS
-
-    # def draw(self):
-    #     """
-    #     Method is used for drawing an apple object on a grid.
-    #     Color is predefined.
-
-    #     args:
-    #         None
-    #     returns:
-    #         None
-    #     """
-    #     rect = pygame.Rect(self.position, (GRID_SIZE, GRID_SIZE))
-    #     pygame.draw.rect(screen, self.body_color, rect)
-    #     pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
 
 
 class Snake(GameObject):
@@ -533,9 +505,9 @@ def main():
     snake.draw()
 
     while True:
-        apple.draw(screen)
+        apple.draw_single_dot(screen)
         for rock in rocks:
-            rock.draw(screen)
+            rock.draw_single_dot(screen)
 
         apple.update_life()
         for rock in rocks:
