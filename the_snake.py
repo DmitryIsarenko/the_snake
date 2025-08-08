@@ -27,6 +27,7 @@ Created by Yandex.Practicum student:
 
 
 from random import randint, randrange
+
 import pygame
 
 # Параметры яблок(а)
