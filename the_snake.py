@@ -1,7 +1,7 @@
 """
 The Snake Game
 ==============
-Implemented with Pygame.
+Implemented with pg.
 
 Goal:
     Collect as many apples as you can and stay alive. Also have fun with it! :)
@@ -27,7 +27,7 @@ Created by Yandex.Practicum student:
 
 
 from random import randint, randrange
-import pygame
+import pygame as pg
 
 # Параметры яблок(а)
 APPLE_LIFE_IN_TICKS = [25, 70]
@@ -43,6 +43,7 @@ SCREEN_WIDTH, SCREEN_HEIGHT = 640, 480
 GRID_SIZE = 20
 GRID_WIDTH = SCREEN_WIDTH // GRID_SIZE
 GRID_HEIGHT = SCREEN_HEIGHT // GRID_SIZE
+SCREEN_CENTER_POS = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
 
 # Направления движения:
 UP = (0, -1)
@@ -70,19 +71,19 @@ SNAKE_COLOR = (0, 255, 0)
 
 # Скорость движения змейки:
 START_SPEED = 5
-SPEED_STEP = 0.5
+SPEED_STEP = 5
+game_speed = START_SPEED
 
 # Настройка игрового окна:
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
+screen = pg.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
 
 # Заголовок окна игрового поля:
-pygame.display.set_caption('Змейка')
+pg.display.set_caption('Змейка')
 
 # Настройка времени:
-clock = pygame.time.Clock()
+clock = pg.time.Clock()
 
 
-# Тут опишите все классы игры.
 class GameObject:
     """
     Base game class. Used to define fundamental attributes to all
@@ -99,13 +100,29 @@ class GameObject:
         self.default_body_color = BOARD_BACKGROUND_COLOR
         self.low_life_blink_speed = 3
         self.blink_tick_count = 0
-        self.position = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        self.position = SCREEN_CENTER_POS
 
     def draw(self):
         """Method is not available in superclass.
         Has to be overridden in every subclass.
         """
-        pass
+        raise NotImplementedError('This method should be called only in'
+                                  'child classes.')
+
+    def draw_single_dot(self, *, color, border_color, position):
+        """
+        Method is used for drawing an apple object on a grid.
+        Color is predefined.
+
+        args:
+            None
+        returns:
+            None
+        """
+        if position and color and border_color:
+            rect = pg.Rect(position, (GRID_SIZE, GRID_SIZE))
+            pg.draw.rect(screen, color, rect)
+            pg.draw.rect(screen, border_color, rect, 1)
 
 
 class LifeUpdatableMixin:
@@ -130,7 +147,7 @@ class LifeUpdatableMixin:
             if self.life <= 0:
                 self.reset()
             elif self.life <= 20:
-                self.blink_on_low_life(screen)
+                self.blink_on_low_life()
 
 
 class ResetableMixin:
@@ -150,8 +167,10 @@ class ResetableMixin:
         returns:
             None
         """
-        rect = pygame.Rect(self.position, (GRID_SIZE, GRID_SIZE))
-        pygame.draw.rect(screen, BOARD_BACKGROUND_COLOR, rect)
+        # self.randomize_position()
+
+        rect = pg.Rect(self.position, (GRID_SIZE, GRID_SIZE))
+        pg.draw.rect(screen, BOARD_BACKGROUND_COLOR, rect)
         self.__init__()
 
 
@@ -183,7 +202,7 @@ class BlinkableMixin:
     Applies to Apple and Rock classes.
     """
 
-    def blink_on_low_life(self, screen):
+    def blink_on_low_life(self):
         """
         Adds blinks for a rock object on trigger. Each iteration switches
         color from default rock color to predefined blinking color.
@@ -195,7 +214,7 @@ class BlinkableMixin:
         """
         if self.blink_tick_count == self.low_life_blink_speed:
             self.body_color = self.default_body_color
-            self.draw_single_dot(screen)
+            self.draw()
             self.blink_tick_count = 0
         elif self.blink_tick_count % 2 == 0:
             self.blink_tick_count += 1
@@ -205,25 +224,25 @@ class BlinkableMixin:
             self.body_color = BLINK_COLOR
 
 
-class DrawableMixin:
-    """
-    Mixin that defines common to Rock and Apple drawing behaviour.
-    Mixin created to follow DRY convention.
-    """
+# class DrawableMixin:
+#     """
+#     Mixin that defines common to Rock and Apple drawing behaviour.
+#     Mixin created to follow DRY convention.
+#     """
 
-    def draw_single_dot(self, screen):
-        """
-        Method is used for drawing an apple object on a grid.
-        Color is predefined.
+#     def draw_single_dot(self, screen):
+#         """
+#         Method is used for drawing an apple object on a grid.
+#         Color is predefined.
 
-        args:
-            None
-        returns:
-            None
-        """
-        rect = pygame.Rect(self.position, (GRID_SIZE, GRID_SIZE))
-        pygame.draw.rect(screen, self.body_color, rect)
-        pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
+#         args:
+#             None
+#         returns:
+#             None
+#         """
+#         rect = pg.Rect(self.position, (GRID_SIZE, GRID_SIZE))
+#         pg.draw.rect(screen, self.body_color, rect)
+#         pg.draw.rect(screen, BORDER_COLOR, rect, 1)
 
 
 class Apple(
@@ -232,7 +251,7 @@ class Apple(
     ResetableMixin,
     RandomizibleCoordsMixin,
     BlinkableMixin,
-    DrawableMixin
+    # DrawableMixin
 ):
     """
     Class that describes an apple in game.
@@ -256,7 +275,15 @@ class Apple(
         self.life = randint(APPLE_LIFE_IN_TICKS[0], APPLE_LIFE_IN_TICKS[1])
         self.body_color = APPLE_COLOR
         self.default_body_color = APPLE_COLOR
+        self.border_color = BORDER_COLOR
         self.low_life_blink_speed = APPLE_BLINK_SPEED_IN_TICKS
+
+    def draw(self):
+        self.draw_single_dot(
+            position=self.position,
+            color=self.body_color,
+            border_color=self.border_color
+        )
 
 
 class Rock(
@@ -265,7 +292,7 @@ class Rock(
     ResetableMixin,
     RandomizibleCoordsMixin,
     BlinkableMixin,
-    DrawableMixin
+    # DrawableMixin
 ):
     """
     Class that describes a rock in game.
@@ -290,7 +317,15 @@ class Rock(
         self.life = randint(ROCK_LIFE_IN_TICKS[0], ROCK_LIFE_IN_TICKS[1])
         self.body_color = ROCK_COLOR
         self.default_body_color = ROCK_COLOR
+        self.border_color = BORDER_COLOR
         self.low_life_blink_speed = ROCK_BLINK_SPEED_IN_TICKS
+
+    def draw(self):
+        self.draw_single_dot(
+            position=self.position,
+            color=self.body_color,
+            border_color=self.border_color
+        )
 
 
 class Snake(GameObject):
@@ -315,10 +350,9 @@ class Snake(GameObject):
         self.direction = RIGHT
         self.next_direction = None
         self.length = 1
-        self.position = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        self.position = SCREEN_CENTER_POS
         self.positions = [self.position]
-        self.last = self.get_head_position()
-        self.speed = START_SPEED
+        self.last = None
 
     def get_head_position(self):
         """
@@ -333,19 +367,21 @@ class Snake(GameObject):
 
     def reset(self):
         """
-        Resets snake:
-        - clears body segments from a screen
-        - triggers reinitialization of a snake
+        Resets game.
 
         args:
             None
         returns:
             None
         """
-        for position in self.positions:
-            rect = pygame.Rect(position, (GRID_SIZE, GRID_SIZE))
-            pygame.draw.rect(screen, BOARD_BACKGROUND_COLOR, rect)
-        self.__init__()
+        global game_speed
+        game_speed = START_SPEED
+        screen.fill(BOARD_BACKGROUND_COLOR)
+        self.position = SCREEN_CENTER_POS
+        self.direction = RIGHT
+        self.length = 1
+        self.next_direction = None
+        self.positions = [self.position]
 
     def draw(self):
         """
@@ -356,18 +392,18 @@ class Snake(GameObject):
         returns:
             None
         """
-        for position in self.positions[:-1]:
-            rect = pygame.Rect(position, (GRID_SIZE, GRID_SIZE))
-            pygame.draw.rect(screen, self.body_color, rect)
-            pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
+        # for position in self.positions[:-1]:
+        #     rect = pg.Rect(position, (GRID_SIZE, GRID_SIZE))
+        #     pg.draw.rect(screen, self.body_color, rect)
+        #     pg.draw.rect(screen, BORDER_COLOR, rect, 1)
 
-        head_rect = pygame.Rect(self.positions[0], (GRID_SIZE, GRID_SIZE))
-        pygame.draw.rect(screen, self.body_color, head_rect)
-        pygame.draw.rect(screen, BORDER_COLOR, head_rect, 1)
+        head_rect = pg.Rect(self.positions[0], (GRID_SIZE, GRID_SIZE))
+        pg.draw.rect(screen, self.body_color, head_rect)
+        pg.draw.rect(screen, BORDER_COLOR, head_rect, 1)
 
         if self.last:
-            last_rect = pygame.Rect(self.last, (GRID_SIZE, GRID_SIZE))
-            pygame.draw.rect(screen, BOARD_BACKGROUND_COLOR, last_rect)
+            last_rect = pg.Rect(self.last, (GRID_SIZE, GRID_SIZE))
+            pg.draw.rect(screen, BOARD_BACKGROUND_COLOR, last_rect)
 
     def move(self):
         """
@@ -382,8 +418,10 @@ class Snake(GameObject):
         returns:
             None
         """
-        next_x = self.position[0] + GRID_SIZE * self.direction[0]
-        next_y = self.position[1] + GRID_SIZE * self.direction[1]
+        current_x, current_y = self.get_head_position()
+        direction_x, direction_y = self.direction
+        next_x = current_x + GRID_SIZE * direction_x
+        next_y = current_y + GRID_SIZE * direction_y
 
         if next_x > SCREEN_WIDTH - GRID_SIZE:
             next_x = 0
@@ -455,7 +493,9 @@ class Snake(GameObject):
         returns:
             None
         """
-        self.speed += SPEED_STEP
+        global game_speed
+        game_speed += SPEED_STEP
+        # self.speed += SPEED_STEP
 
 
 def handle_keys(game_object: Snake):
@@ -469,18 +509,18 @@ def handle_keys(game_object: Snake):
     returns:
         None
     """
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
+            pg.quit()
             raise SystemExit
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP and game_object.direction != DOWN:
+        elif event.type == pg.KEYDOWN:
+            if event.key == pg.K_UP and game_object.direction != DOWN:
                 game_object.next_direction = UP
-            elif event.key == pygame.K_DOWN and game_object.direction != UP:
+            elif event.key == pg.K_DOWN and game_object.direction != UP:
                 game_object.next_direction = DOWN
-            elif event.key == pygame.K_LEFT and game_object.direction != RIGHT:
+            elif event.key == pg.K_LEFT and game_object.direction != RIGHT:
                 game_object.next_direction = LEFT
-            elif event.key == pygame.K_RIGHT and game_object.direction != LEFT:
+            elif event.key == pg.K_RIGHT and game_object.direction != LEFT:
                 game_object.next_direction = RIGHT
 
 
@@ -496,7 +536,7 @@ def main():
     returns:
         None
     """
-    pygame.init()
+    pg.init()
 
     snake = Snake()
     apple = Apple()
@@ -505,9 +545,9 @@ def main():
     snake.draw()
 
     while True:
-        apple.draw_single_dot(screen)
+        apple.draw()
         for rock in rocks:
-            rock.draw_single_dot(screen)
+            rock.draw()
 
         apple.update_life()
         for rock in rocks:
@@ -523,8 +563,8 @@ def main():
         for rock in rocks:
             snake.check_collision(rock)
 
-        clock.tick(snake.speed)
-        pygame.display.update()
+        clock.tick(game_speed)
+        pg.display.update()
 
 
 if __name__ == '__main__':
