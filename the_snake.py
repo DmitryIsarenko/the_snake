@@ -27,6 +27,7 @@ Created by Yandex.Practicum student:
 
 
 from random import randint, randrange
+
 import pygame as pg
 
 # Параметры яблок(а)
@@ -70,9 +71,15 @@ APPLE_COLOR = (255, 0, 0)
 SNAKE_COLOR = (0, 255, 0)
 
 # Скорость движения змейки:
-START_SPEED = 5
-SPEED_STEP = 5
+START_SPEED = 8
+SPEED_STEP = 0
 game_speed = START_SPEED
+
+# Список занятых ячеек:
+not_empty_cells = []
+
+# Список активных игровых объектов:
+game_objects = []
 
 # Настройка игрового окна:
 screen = pg.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
@@ -95,12 +102,19 @@ class GameObject:
         Apple, Rock, Snake
     """
 
-    def __init__(self):
-        self.body_color = BOARD_BACKGROUND_COLOR
-        self.default_body_color = BOARD_BACKGROUND_COLOR
+    def __init__(
+        self,
+        position=SCREEN_CENTER_POS,
+        body_color=BOARD_BACKGROUND_COLOR,
+        border_color=BORDER_COLOR,
+    ):
+        self.body_color = body_color
+        self.default_body_color = body_color
+        self.border_color = border_color
         self.low_life_blink_speed = 3
         self.blink_tick_count = 0
-        self.position = SCREEN_CENTER_POS
+        self.position = position
+        game_objects.append(self)
 
     def draw(self):
         """Method is not available in superclass.
@@ -150,37 +164,13 @@ class LifeUpdatableMixin:
                 self.blink_on_low_life()
 
 
-class ResetableMixin:
-    """
-    Mixin that adds reset behaviour for a class.
-    1. Fills with background color last position.
-    2. Triggers reinitialization
-    """
-
-    def reset(self):
-        """
-        Fills last recorded position of an object with a background color
-        (i.e. erases) and triggers reinitialization.
-
-        args:
-            None
-        returns:
-            None
-        """
-        # self.randomize_position()
-
-        rect = pg.Rect(self.position, (GRID_SIZE, GRID_SIZE))
-        pg.draw.rect(screen, BOARD_BACKGROUND_COLOR, rect)
-        self.__init__()
-
-
 class RandomizibleCoordsMixin:
     """
     Mixin that forces initialized object to appear at random location.
     Used for Apple and Rock classes.
     """
 
-    def randomize_position(self):
+    def randomize_position(self, not_empty_cells=not_empty_cells):
         """
         Assigns a random position for an object.
         Coords stays withing the game field.
@@ -190,9 +180,13 @@ class RandomizibleCoordsMixin:
         returns:
             None
         """
-        rand_x = randrange(0, SCREEN_WIDTH, GRID_SIZE)
-        rand_y = randrange(0, SCREEN_HEIGHT, GRID_SIZE)
-
+        while True:
+            rand_x = randrange(0, SCREEN_WIDTH, GRID_SIZE)
+            rand_y = randrange(0, SCREEN_HEIGHT, GRID_SIZE)
+            if (rand_x, rand_y) in not_empty_cells:
+                continue
+            else:
+                break
         self.position = (rand_x, rand_y)
 
 
@@ -214,7 +208,6 @@ class BlinkableMixin:
         """
         if self.blink_tick_count == self.low_life_blink_speed:
             self.body_color = self.default_body_color
-            self.draw()
             self.blink_tick_count = 0
         elif self.blink_tick_count % 2 == 0:
             self.blink_tick_count += 1
@@ -224,34 +217,11 @@ class BlinkableMixin:
             self.body_color = BLINK_COLOR
 
 
-# class DrawableMixin:
-#     """
-#     Mixin that defines common to Rock and Apple drawing behaviour.
-#     Mixin created to follow DRY convention.
-#     """
-
-#     def draw_single_dot(self, screen):
-#         """
-#         Method is used for drawing an apple object on a grid.
-#         Color is predefined.
-
-#         args:
-#             None
-#         returns:
-#             None
-#         """
-#         rect = pg.Rect(self.position, (GRID_SIZE, GRID_SIZE))
-#         pg.draw.rect(screen, self.body_color, rect)
-#         pg.draw.rect(screen, BORDER_COLOR, rect, 1)
-
-
 class Apple(
     GameObject,
     LifeUpdatableMixin,
-    ResetableMixin,
     RandomizibleCoordsMixin,
     BlinkableMixin,
-    # DrawableMixin
 ):
     """
     Class that describes an apple in game.
@@ -269,30 +239,44 @@ class Apple(
         Rock
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        position=SCREEN_CENTER_POS,
+        body_color=APPLE_COLOR,
+        border_color=BORDER_COLOR,
+    ):
+        super().__init__(position=position,
+                         body_color=body_color,
+                         border_color=border_color)
         self.randomize_position()
         self.life = randint(APPLE_LIFE_IN_TICKS[0], APPLE_LIFE_IN_TICKS[1])
-        self.body_color = APPLE_COLOR
-        self.default_body_color = APPLE_COLOR
-        self.border_color = BORDER_COLOR
         self.low_life_blink_speed = APPLE_BLINK_SPEED_IN_TICKS
 
-    def draw(self):
+    def draw(self, body_color=None, border_colr=None):
+        """Method that draws Apple object."""
+        body_col = self.body_color if body_color is None else body_color
+        border_col = self.border_color if border_colr is None else border_colr
+
         self.draw_single_dot(
             position=self.position,
-            color=self.body_color,
-            border_color=self.border_color
+            color=body_col,
+            border_color=border_col
         )
+
+    def reset(self):
+        """Method that resets Apple object."""
+        self.draw(body_color=BOARD_BACKGROUND_COLOR,
+                  border_color=BOARD_BACKGROUND_COLOR)
+        self.body_color = self.default_body_color
+        self.randomize_position()
+        self.life = randint(APPLE_LIFE_IN_TICKS[0], APPLE_LIFE_IN_TICKS[1])
 
 
 class Rock(
     GameObject,
     LifeUpdatableMixin,
-    ResetableMixin,
     RandomizibleCoordsMixin,
     BlinkableMixin,
-    # DrawableMixin
 ):
     """
     Class that describes a rock in game.
@@ -310,22 +294,37 @@ class Rock(
         None
     """
 
-    def __init__(self):
-        super().__init__()
-        self.body_color = ROCK_COLOR
+    def __init__(
+        self,
+        position=SCREEN_CENTER_POS,
+        body_color=ROCK_COLOR,
+        border_color=BORDER_COLOR,
+    ):
+        super().__init__(position=position,
+                         body_color=body_color,
+                         border_color=border_color)
         self.randomize_position()
         self.life = randint(ROCK_LIFE_IN_TICKS[0], ROCK_LIFE_IN_TICKS[1])
-        self.body_color = ROCK_COLOR
-        self.default_body_color = ROCK_COLOR
-        self.border_color = BORDER_COLOR
         self.low_life_blink_speed = ROCK_BLINK_SPEED_IN_TICKS
 
-    def draw(self):
+    def draw(self, body_color=None, border_colr=None):
+        """Method that draws Rock object."""
+        body_col = self.body_color if body_color is None else body_color
+        border_col = self.border_color if border_colr is None else border_colr
+
         self.draw_single_dot(
             position=self.position,
-            color=self.body_color,
-            border_color=self.border_color
+            color=body_col,
+            border_color=border_col
         )
+
+    def reset(self):
+        """Method that resets Rock object."""
+        self.draw(body_color=BOARD_BACKGROUND_COLOR,
+                  border_color=BOARD_BACKGROUND_COLOR)
+        self.body_color = self.default_body_color
+        self.randomize_position()
+        self.life = randint(ROCK_LIFE_IN_TICKS[0], ROCK_LIFE_IN_TICKS[1])
 
 
 class Snake(GameObject):
@@ -343,14 +342,19 @@ class Snake(GameObject):
         None
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        position=SCREEN_CENTER_POS,
+        body_color=SNAKE_COLOR,
+        border_color=BORDER_COLOR,
+    ):
+        super().__init__(position=position,
+                         body_color=body_color,
+                         border_color=border_color)
         self.has_eaten = False
-        self.body_color = SNAKE_COLOR
         self.direction = RIGHT
         self.next_direction = None
         self.length = 1
-        self.position = SCREEN_CENTER_POS
         self.positions = [self.position]
         self.last = None
 
@@ -392,14 +396,9 @@ class Snake(GameObject):
         returns:
             None
         """
-        # for position in self.positions[:-1]:
-        #     rect = pg.Rect(position, (GRID_SIZE, GRID_SIZE))
-        #     pg.draw.rect(screen, self.body_color, rect)
-        #     pg.draw.rect(screen, BORDER_COLOR, rect, 1)
-
         head_rect = pg.Rect(self.positions[0], (GRID_SIZE, GRID_SIZE))
         pg.draw.rect(screen, self.body_color, head_rect)
-        pg.draw.rect(screen, BORDER_COLOR, head_rect, 1)
+        pg.draw.rect(screen, self.border_color, head_rect, 1)
 
         if self.last:
             last_rect = pg.Rect(self.last, (GRID_SIZE, GRID_SIZE))
@@ -442,34 +441,7 @@ class Snake(GameObject):
         else:
             self.last = self.positions.pop(-1)
 
-        self.position = self.positions[0]
-
-        self.draw()
-
-    def check_collision(self, game_object):
-        """
-        Check collisions with game objects:
-        - Apple: triggers growth
-        - Rock: triggers death
-        - Snake: (hit yourself) triggers death
-
-        args:
-            game_object (GameObject): The object to check collision against.
-        returns:
-            None
-        """
-        if isinstance(game_object, Rock):
-            if game_object.position == self.position:
-                self.reset()
-
-        if isinstance(game_object, Apple):
-            if game_object.position == self.position:
-                self.has_eaten = True
-                game_object.reset()
-
-        if isinstance(game_object, Snake):
-            if any(self.position == pos for pos in self.positions[1::]):
-                self.reset()
+        # self.position = self.positions[0]
 
     def update_direction(self):
         """
@@ -495,7 +467,6 @@ class Snake(GameObject):
         """
         global game_speed
         game_speed += SPEED_STEP
-        # self.speed += SPEED_STEP
 
 
 def handle_keys(game_object: Snake):
@@ -522,6 +493,56 @@ def handle_keys(game_object: Snake):
                 game_object.next_direction = LEFT
             elif event.key == pg.K_RIGHT and game_object.direction != LEFT:
                 game_object.next_direction = RIGHT
+            elif event.key == pg.K_ESCAPE:
+                pg.quit()
+                raise SystemExit
+
+
+def update_not_empty_cells(*args) -> None:
+    """Function updates global variable that contains all not empty cells."""
+    global not_empty_cells
+    not_empty_cells = []
+
+    for obj in args:
+        if isinstance(obj, Snake):
+            not_empty_cells.append(obj.positions)
+        elif isinstance(obj, Rock) or isinstance(obj, Apple):
+            not_empty_cells.append(obj.position)
+
+
+def check_collision(obj_1: Snake | Rock | Apple, obj_2=None):
+    """
+    Check collisions with game objects:
+    - Apple: triggers growth
+    - Rock: triggers death
+    - Snake: (hit yourself) triggers death
+
+    args:
+        game_object (GameObject): The object to check collision against.
+    returns:
+        None
+    """
+    if isinstance(obj_1, Snake):
+        if isinstance(obj_2, Rock):
+            if obj_1.get_head_position() == obj_2.position:
+                reset_game()
+        elif isinstance(obj_2, Apple):
+            if obj_1.get_head_position() == obj_2.position:
+                obj_2.reset()
+                obj_1.has_eaten = True
+        elif obj_2 is None:
+            if any(
+                pos == obj_1.get_head_position()
+                for pos in obj_1.positions[1::]
+            ):
+                reset_game()
+
+
+def reset_game():
+    """Function resets game."""
+    global game_objects
+    for obj in game_objects:
+        obj.reset()
 
 
 def main():
@@ -542,28 +563,26 @@ def main():
     apple = Apple()
     rocks = [Rock() for _ in range(ROCKS_GENERATED)]
 
-    snake.draw()
-
     while True:
-        apple.draw()
-        for rock in rocks:
-            rock.draw()
+        clock.tick(game_speed)
 
+        snake.move()
+        update_not_empty_cells(Snake, Apple, *rocks)
         apple.update_life()
         for rock in rocks:
             rock.update_life()
 
-        snake.check_collision(apple)
+        check_collision(snake)
+        check_collision(snake, apple)
+        for rock in rocks:
+            check_collision(snake, rock)
 
         handle_keys(snake)
         snake.update_direction()
-        snake.move()
 
-        snake.check_collision(snake)
-        for rock in rocks:
-            snake.check_collision(rock)
+        for obj in game_objects:
+            obj.draw()
 
-        clock.tick(game_speed)
         pg.display.update()
 
 
