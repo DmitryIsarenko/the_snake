@@ -351,7 +351,6 @@ class Snake(GameObject):
         super().__init__(position=position,
                          body_color=body_color,
                          border_color=border_color)
-        # self.is_growing_on_move = False
         self.direction = RIGHT
         self.next_direction = None
         self.length = 1
