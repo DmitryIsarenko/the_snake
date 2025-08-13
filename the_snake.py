@@ -72,7 +72,7 @@ SNAKE_COLOR = (0, 255, 0)
 
 # Скорость движения змейки:
 START_SPEED = 6
-SPEED_STEP = 10
+SPEED_STEP = 2
 game_speed = START_SPEED
 
 # Список занятых ячеек:
