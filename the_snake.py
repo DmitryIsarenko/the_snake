@@ -71,12 +71,12 @@ APPLE_COLOR = (255, 0, 0)
 SNAKE_COLOR = (0, 255, 0)
 
 # Скорость движения змейки:
-START_SPEED = 8
-SPEED_STEP = 0
+START_SPEED = 6
+SPEED_STEP = 10
 game_speed = START_SPEED
 
 # Список занятых ячеек:
-not_empty_cells = []
+not_empty_cells: list[tuple] = []
 
 # Список активных игровых объектов:
 game_objects = []
@@ -120,8 +120,8 @@ class GameObject:
         """Method is not available in superclass.
         Has to be overridden in every subclass.
         """
-        raise NotImplementedError('This method should be called only in'
-                                  'child classes.')
+        # raise NotImplementedError('This method should be called only in'
+        #                           'child classes.')
 
     def draw_single_dot(self, *, color, border_color, position):
         """
@@ -252,15 +252,15 @@ class Apple(
         self.life = randint(APPLE_LIFE_IN_TICKS[0], APPLE_LIFE_IN_TICKS[1])
         self.low_life_blink_speed = APPLE_BLINK_SPEED_IN_TICKS
 
-    def draw(self, body_color=None, border_colr=None):
+    def draw(self, body_color=None, border_color=None):
         """Method that draws Apple object."""
-        body_col = self.body_color if body_color is None else body_color
-        border_col = self.border_color if border_colr is None else border_colr
+        body = self.body_color if body_color is None else body_color
+        border = self.border_color if border_color is None else border_color
 
         self.draw_single_dot(
             position=self.position,
-            color=body_col,
-            border_color=border_col
+            color=body,
+            border_color=border
         )
 
     def reset(self):
@@ -307,15 +307,15 @@ class Rock(
         self.life = randint(ROCK_LIFE_IN_TICKS[0], ROCK_LIFE_IN_TICKS[1])
         self.low_life_blink_speed = ROCK_BLINK_SPEED_IN_TICKS
 
-    def draw(self, body_color=None, border_colr=None):
+    def draw(self, body_color=None, border_color=None):
         """Method that draws Rock object."""
-        body_col = self.body_color if body_color is None else body_color
-        border_col = self.border_color if border_colr is None else border_colr
+        body = self.body_color if body_color is None else body_color
+        border = self.border_color if border_color is None else border_color
 
         self.draw_single_dot(
             position=self.position,
-            color=body_col,
-            border_color=border_col
+            color=body,
+            border_color=border
         )
 
     def reset(self):
@@ -351,7 +351,7 @@ class Snake(GameObject):
         super().__init__(position=position,
                          body_color=body_color,
                          border_color=border_color)
-        self.has_eaten = False
+        # self.is_growing_on_move = False
         self.direction = RIGHT
         self.next_direction = None
         self.length = 1
@@ -378,10 +378,6 @@ class Snake(GameObject):
         returns:
             None
         """
-        global game_speed
-        game_speed = START_SPEED
-        screen.fill(BOARD_BACKGROUND_COLOR)
-        self.position = SCREEN_CENTER_POS
         self.direction = RIGHT
         self.length = 1
         self.next_direction = None
@@ -419,29 +415,16 @@ class Snake(GameObject):
         """
         current_x, current_y = self.get_head_position()
         direction_x, direction_y = self.direction
-        next_x = current_x + GRID_SIZE * direction_x
-        next_y = current_y + GRID_SIZE * direction_y
-
-        if next_x > SCREEN_WIDTH - GRID_SIZE:
-            next_x = 0
-        elif next_x < 0:
-            next_x = SCREEN_WIDTH - GRID_SIZE
-
-        if next_y > SCREEN_HEIGHT - GRID_SIZE:
-            next_y = 0
-        elif next_y < 0:
-            next_y = SCREEN_HEIGHT - GRID_SIZE
+        next_x = (current_x + GRID_SIZE * direction_x) % SCREEN_WIDTH
+        next_y = (current_y + GRID_SIZE * direction_y) % SCREEN_HEIGHT
 
         self.positions.insert(0, ((next_x), (next_y)))
 
-        if self.has_eaten:
-            self.has_eaten = False
-            self.length += 1
-            self.update_speed()
-        else:
-            self.last = self.positions.pop(-1)
+        self.last = self.positions.pop(-1)
 
-        # self.position = self.positions[0]
+    def grow(self):
+        """Method allows growing behavior on call."""
+        self.positions.append(self.last)
 
     def update_direction(self):
         """
@@ -455,18 +438,6 @@ class Snake(GameObject):
         if self.next_direction:
             self.direction = self.next_direction
             self.next_direction = None
-
-    def update_speed(self):
-        """
-        Increases speed on call. Typically used in eating an apple condition.
-
-        args:
-            None
-        returns:
-            None
-        """
-        global game_speed
-        game_speed += SPEED_STEP
 
 
 def handle_keys(game_object: Snake):
@@ -496,6 +467,19 @@ def handle_keys(game_object: Snake):
             elif event.key == pg.K_ESCAPE:
                 pg.quit()
                 raise SystemExit
+
+
+def increase_game_speed():
+    """
+    Increases speed on call. Typically used in eating an apple condition.
+
+    args:
+        None
+    returns:
+        None
+    """
+    global game_speed
+    game_speed += SPEED_STEP
 
 
 def update_not_empty_cells(*args) -> None:
@@ -528,8 +512,9 @@ def check_collision(obj_1: Snake | Rock | Apple, obj_2=None):
                 reset_game()
         elif isinstance(obj_2, Apple):
             if obj_1.get_head_position() == obj_2.position:
+                obj_1.grow()
                 obj_2.reset()
-                obj_1.has_eaten = True
+                increase_game_speed()
         elif obj_2 is None:
             if any(
                 pos == obj_1.get_head_position()
@@ -540,9 +525,12 @@ def check_collision(obj_1: Snake | Rock | Apple, obj_2=None):
 
 def reset_game():
     """Function resets game."""
-    global game_objects
+    global game_objects, game_speed
     for obj in game_objects:
         obj.reset()
+
+    game_speed = START_SPEED
+    screen.fill(BOARD_BACKGROUND_COLOR)
 
 
 def main():
@@ -568,6 +556,7 @@ def main():
 
         snake.move()
         update_not_empty_cells(Snake, Apple, *rocks)
+
         apple.update_life()
         for rock in rocks:
             rock.update_life()
