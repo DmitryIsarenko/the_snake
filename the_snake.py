@@ -18,6 +18,8 @@ This version of a game contains:
 
 Controls:
     Use your keyboard arrows to set direction of a snake.
+    Space - pause game.
+    ESC - exit game.
 
 
 Created by Yandex.Practicum student:
@@ -25,8 +27,7 @@ Created by Yandex.Practicum student:
     isarenko.dmitry.it@gmail.com
 """
 
-
-from random import randint, randrange
+from random import choice, randint, randrange
 
 import pygame as pg
 
@@ -35,7 +36,7 @@ APPLE_LIFE_IN_TICKS = [25, 70]
 APPLE_BLINK_SPEED_IN_TICKS = 3
 
 # Параметры камня(ей)
-ROCKS_GENERATED = 3
+ROCKS_GENERATED = 5
 ROCK_LIFE_IN_TICKS = [40, 150]
 ROCK_BLINK_SPEED_IN_TICKS = 3
 
@@ -72,8 +73,11 @@ SNAKE_COLOR = (0, 255, 0)
 
 # Скорость движения змейки:
 START_SPEED = 6
-SPEED_STEP = 2
+SPEED_STEP = 0
+
+# Глобальные изменяемые переменные
 game_speed = START_SPEED
+is_paused = False
 
 # Список занятых ячеек:
 not_empty_cells: list[tuple] = []
@@ -120,10 +124,10 @@ class GameObject:
         """Method is not available in superclass.
         Has to be overridden in every subclass.
         """
-        # raise NotImplementedError('This method should be called only in'
-        #                           'child classes.')
+        raise NotImplementedError('This method should be called only in'
+                                  'child classes.')
 
-    def draw_single_dot(self, *, color, border_color, position):
+    def draw_single_dot(self, color=None, border_color=None, position=None):
         """
         Method is used for drawing an apple object on a grid.
         Color is predefined.
@@ -133,10 +137,13 @@ class GameObject:
         returns:
             None
         """
-        if position and color and border_color:
-            rect = pg.Rect(position, (GRID_SIZE, GRID_SIZE))
-            pg.draw.rect(screen, color, rect)
-            pg.draw.rect(screen, border_color, rect, 1)
+        color = color or self.body_color
+        border_color = border_color or self.border_color
+        position = position or self.position
+
+        rect = pg.Rect(position, (GRID_SIZE, GRID_SIZE))
+        pg.draw.rect(screen, color, rect)
+        pg.draw.rect(screen, border_color, rect, 1)
 
 
 class LifeUpdatableMixin:
@@ -170,7 +177,7 @@ class RandomizibleCoordsMixin:
     Used for Apple and Rock classes.
     """
 
-    def randomize_position(self, not_empty_cells=not_empty_cells):
+    def randomize_position(self):
         """
         Assigns a random position for an object.
         Coords stays withing the game field.
@@ -180,14 +187,14 @@ class RandomizibleCoordsMixin:
         returns:
             None
         """
+        update_not_empty_cells(get_not_empty_cells(*game_objects))
         while True:
             rand_x = randrange(0, SCREEN_WIDTH, GRID_SIZE)
             rand_y = randrange(0, SCREEN_HEIGHT, GRID_SIZE)
-            if (rand_x, rand_y) in not_empty_cells:
-                continue
-            else:
+            if (rand_x, rand_y) not in not_empty_cells:
                 break
         self.position = (rand_x, rand_y)
+        update_not_empty_cells(get_not_empty_cells(*game_objects))
 
 
 class BlinkableMixin:
@@ -236,7 +243,7 @@ class Apple(
     Superclass:
         GameObject
     Subclasses:
-        Rock
+        None
     """
 
     def __init__(
@@ -254,13 +261,10 @@ class Apple(
 
     def draw(self, body_color=None, border_color=None):
         """Method that draws Apple object."""
-        body = self.body_color if body_color is None else body_color
-        border = self.border_color if border_color is None else border_color
-
         self.draw_single_dot(
             position=self.position,
-            color=body,
-            border_color=border
+            color=body_color,
+            border_color=border_color
         )
 
     def reset(self):
@@ -309,13 +313,10 @@ class Rock(
 
     def draw(self, body_color=None, border_color=None):
         """Method that draws Rock object."""
-        body = self.body_color if body_color is None else body_color
-        border = self.border_color if border_color is None else border_color
-
         self.draw_single_dot(
             position=self.position,
-            color=body,
-            border_color=border
+            color=body_color,
+            border_color=border_color
         )
 
     def reset(self):
@@ -377,7 +378,6 @@ class Snake(GameObject):
         returns:
             None
         """
-        self.direction = RIGHT
         self.length = 1
         self.next_direction = None
         self.positions = [self.position]
@@ -420,10 +420,12 @@ class Snake(GameObject):
         self.positions.insert(0, ((next_x), (next_y)))
 
         self.last = self.positions.pop(-1)
+        update_not_empty_cells(get_not_empty_cells(*game_objects))
 
     def grow(self):
         """Method allows growing behavior on call."""
         self.positions.append(self.last)
+        self.last = None
 
     def update_direction(self):
         """
@@ -440,32 +442,46 @@ class Snake(GameObject):
 
 
 def handle_keys(game_object: Snake):
-    """
-    Used to handle keyboard inputs (arrow keys) and 'close window' event.
+    """Handles keyboard inputs for controlling snake and exiting game."""
+    global is_paused
 
-    Allows to steer a snake over field and exit game by closing a window.
-
-    args:
-        object (Snake): The snake obj, that should be controlled.
-    returns:
-        None
-    """
     for event in pg.event.get():
         if event.type == pg.QUIT:
-            pg.quit()
-            raise SystemExit
+            quit_game()
+
         elif event.type == pg.KEYDOWN:
-            if event.key == pg.K_UP and game_object.direction != DOWN:
-                game_object.next_direction = UP
-            elif event.key == pg.K_DOWN and game_object.direction != UP:
-                game_object.next_direction = DOWN
-            elif event.key == pg.K_LEFT and game_object.direction != RIGHT:
-                game_object.next_direction = LEFT
-            elif event.key == pg.K_RIGHT and game_object.direction != LEFT:
-                game_object.next_direction = RIGHT
-            elif event.key == pg.K_ESCAPE:
-                pg.quit()
-                raise SystemExit
+            handle_movement_keys(event, game_object)
+            handle_pause_exit_keys(event)
+
+
+def quit_game():
+    """Quit pygame and exit."""
+    pg.quit()
+    raise SystemExit
+
+
+def handle_movement_keys(event, game_object: Snake):
+    """Handles arrow keys to update snake's direction."""
+    if is_paused:
+        return
+
+    if event.key == pg.K_UP and game_object.direction != DOWN:
+        game_object.next_direction = UP
+    elif event.key == pg.K_DOWN and game_object.direction != UP:
+        game_object.next_direction = DOWN
+    elif event.key == pg.K_LEFT and game_object.direction != RIGHT:
+        game_object.next_direction = LEFT
+    elif event.key == pg.K_RIGHT and game_object.direction != LEFT:
+        game_object.next_direction = RIGHT
+
+
+def handle_pause_exit_keys(event):
+    """Handles ESC and SPACE keys for pause/resume or exit."""
+    global is_paused
+    if event.key == pg.K_ESCAPE:
+        quit_game()
+    elif event.key == pg.K_SPACE:
+        is_paused = not is_paused
 
 
 def increase_game_speed():
@@ -477,20 +493,26 @@ def increase_game_speed():
     returns:
         None
     """
-    global game_speed
+    global game_speed, game_speed_saved
     game_speed += SPEED_STEP
 
 
-def update_not_empty_cells(*args) -> None:
-    """Function updates global variable that contains all not empty cells."""
-    global not_empty_cells
+def get_not_empty_cells(*args) -> list[tuple]:
+    """Function that can be used to get all taken cells."""
     not_empty_cells = []
 
     for obj in args:
         if isinstance(obj, Snake):
-            not_empty_cells.append(obj.positions)
+            not_empty_cells.extend(obj.positions)
         elif isinstance(obj, Rock) or isinstance(obj, Apple):
             not_empty_cells.append(obj.position)
+    return not_empty_cells
+
+
+def update_not_empty_cells(data: list[tuple]) -> None:
+    """Function updates global variable that contains all not empty cells."""
+    global not_empty_cells
+    not_empty_cells = data
 
 
 def check_collision(obj_1: Snake | Rock | Apple, obj_2=None):
@@ -509,6 +531,7 @@ def check_collision(obj_1: Snake | Rock | Apple, obj_2=None):
         if isinstance(obj_2, Rock):
             if obj_1.get_head_position() == obj_2.position:
                 reset_game()
+                obj_1.direction = RIGHT
         elif isinstance(obj_2, Apple):
             if obj_1.get_head_position() == obj_2.position:
                 obj_1.grow()
@@ -520,15 +543,17 @@ def check_collision(obj_1: Snake | Rock | Apple, obj_2=None):
                 for pos in obj_1.positions[1::]
             ):
                 reset_game()
+                obj_1.direction = choice([LEFT, RIGHT, UP, DOWN])
 
 
 def reset_game():
     """Function resets game."""
-    global game_objects, game_speed
+    global game_objects, game_speed, game_speed_saved
     for obj in game_objects:
         obj.reset()
 
     game_speed = START_SPEED
+
     screen.fill(BOARD_BACKGROUND_COLOR)
 
 
@@ -544,34 +569,43 @@ def main():
     returns:
         None
     """
+    global not_empty_cells, game_speed
     pg.init()
 
     snake = Snake()
     apple = Apple()
-    rocks = [Rock() for _ in range(ROCKS_GENERATED)]
+    if ROCKS_GENERATED > 0:
+        rocks = [Rock() for _ in range(ROCKS_GENERATED)]
+    else:
+        rocks = None
 
     while True:
-        clock.tick(game_speed)
+        if not is_paused:
+            clock.tick(game_speed)
 
-        snake.move()
-        update_not_empty_cells(Snake, Apple, *rocks)
+            snake.move()
 
-        apple.update_life()
-        for rock in rocks:
-            rock.update_life()
+            apple.update_life()
+            if rocks:
+                for rock in rocks:
+                    rock.update_life()
 
-        check_collision(snake)
-        check_collision(snake, apple)
-        for rock in rocks:
-            check_collision(snake, rock)
+            check_collision(snake)
+            check_collision(snake, apple)
+            if rocks:
+                for rock in rocks:
+                    check_collision(snake, rock)
 
-        handle_keys(snake)
-        snake.update_direction()
+            handle_keys(snake)
+            snake.update_direction()
 
-        for obj in game_objects:
-            obj.draw()
+            for obj in game_objects:
+                obj.draw()
 
-        pg.display.update()
+            pg.display.update()
+        else:
+            clock.tick(game_speed)
+            handle_keys(snake)
 
 
 if __name__ == '__main__':
