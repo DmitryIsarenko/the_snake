@@ -124,8 +124,6 @@ class GameObject:
         """Method is not available in superclass.
         Has to be overridden in every subclass.
         """
-        raise NotImplementedError('This method should be called only in'
-                                  'child classes.')
 
     def draw_single_dot(self, color=None, border_color=None, position=None):
         """
